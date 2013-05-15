@@ -1,0 +1,14 @@
+#!/bin/bash
+
+source ./config
+
+for thread in $THREADS
+do
+    echo -e "\n-----------------------CPU TEST WITH $thread THREADS------------------------" >> report.cpu.$1
+    egrep '(approx)|(avg:)|(total time:)|(total num)' $1/sysbench.cpu.${thread}.res |sed -r 's/^ +//' >> report.cpu.$1
+    echo  >> report.cpu.$1
+
+    echo -e "\n-----------------------MEMORY $MEM_OP TEST WITH $thread THREADS------------------------" >> report.memory.$1
+    egrep '(Operations performed:)|(transferred)' $1/memory.${MEM_ACCESS_MODE}.${MEM_OP}.${thread}.res >> report.memory.$1
+    echo >> report.memory.$1
+done

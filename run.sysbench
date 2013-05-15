@@ -1,0 +1,66 @@
+#!/bin/bash
+
+#cpu options:
+#  --cpu-max-prime=N      upper limit for primes generator [10000]
+
+
+#memory options:
+#  --memory-block-size=SIZE    size of memory block for test [1K]
+#  --memory-total-size=SIZE    total size of data to transfer [100G]
+#  --memory-scope=STRING       memory access scope {global,local} [global]
+#  --memory-hugetlb=[on|off]   allocate memory from HugeTLB pool [off]
+#  --memory-oper=STRING        type of memory operations {read, write, none} [write]
+#  --memory-access-mode=STRING memory access mode {seq,rnd} [seq]
+
+set -x
+
+# setup
+source ./config
+
+if [ "$CPU_MASK" != "" ]
+then
+  TASKSET="taskset -c $CPU_MASK"
+else
+  TASKSET=""
+fi
+
+#determine run number for selecting an output directory
+RUN_NUMBER=-1
+
+if [ -f ".run_number" ]
+then
+  read RUN_NUMBER < .run_number
+fi
+
+if [ $RUN_NUMBER -eq -1 ]
+then
+  RUN_NUMBER=0
+fi
+
+OUTDIR=`printf "res%02d" $RUN_NUMBER`
+mkdir -p $OUTDIR
+
+RUN_NUMBER=`expr $RUN_NUMBER + 1`
+echo $RUN_NUMBER > .run_number
+
+
+for thread in $THREADS
+do
+    $TASKSET iostat -mx $REPORT $(($RUN_TIME/$REPORT+1)) >> \
+                                            $OUTDIR/iostat.cpu.${thread}.res &
+    $TASKSET $SYSBENCH --test=cpu --cpu-max-prime=$PRIME_NUM \
+        --num-threads=$thread run | tee -a $OUTDIR/sysbench.cpu.${thread}.res
+
+    sleep 10
+
+    $TASKSET $SYSBENCH --test=memory --memory-block-size=$MEM_BLOCK_SZ \
+        --memory-total-size=$MEM_TOTAL_SZ --memory-scope=$MEM_SCOPE \
+        --memory-hugetlb=$MEM_HUGETLB --memory-oper=$MEM_OP \
+        --memory-access-mode=$MEM_ACCESS_MODE --num-threads=$thread \
+        --max-time=$RUN_TIME run | tee -a \
+                    $OUTDIR/memory.${MEM_ACCESS_MODE}.${MEM_OP}.${thread}.res
+
+    sleep 10
+done
+
+set +x
